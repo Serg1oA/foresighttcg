@@ -1,1 +1,1 @@
-# foresighttcg
+# ForesightTCG
