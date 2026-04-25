@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase'
-import { META_DECKS } from '@/lib/decks'
-import { cn } from '@/lib/utils'
+import { createClient } from '@/src/lib/supabase'
+import { META_DECKS } from '@/src/lib/decks'
+import { cn } from '@/src/lib/utils'
 
 function SelectGrid({
   options,
@@ -103,12 +103,6 @@ export default function LogMatch() {
 
         <div className="flex items-center justify-between py-2">
           <h1 className="text-2xl font-bold">Log a Match</h1>
-          <button
-            onClick={() => router.push('/')}
-            className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
-          >
-            ← Home
-          </button>
         </div>
 
         <Section title="My Deck">
