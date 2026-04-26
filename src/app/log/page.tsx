@@ -1,16 +1,23 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/src/lib/supabase'
-import { META_DECKS } from '@/src/lib/decks'
-import { cn } from '@/src/lib/utils'
+import { createClient } from '@/lib/supabase'
+import { cn } from '@/lib/utils'
+import { DeckCombobox } from '@/components/deck-combobox'
 
-function SelectGrid({
-  options,
-  value,
-  onChange,
-}: {
+const RESULT_OPTIONS = [
+  { id: 'win', label: 'Win', emoji: '🏆' },
+  { id: 'loss', label: 'Loss', emoji: '💀' },
+  { id: 'tie', label: 'Tie', emoji: '🤝' },
+]
+
+const FIRST_OPTIONS = [
+  { id: 'true', label: 'Yes, I went first', emoji: '⚡' },
+  { id: 'false', label: 'No, I went second', emoji: '🐢' },
+]
+
+function SelectGrid({ options, value, onChange }: {
   options: { id: string; label: string; emoji: string }[]
   value: string
   onChange: (val: string) => void
@@ -23,7 +30,7 @@ function SelectGrid({
           type="button"
           onClick={() => onChange(opt.id)}
           className={cn(
-            "flex flex-col items-center justify-center h-16 w-28 gap-1 rounded-lg border text-sm transition-colors",
+            "flex flex-col items-center justify-center h-16 flex-1 min-w-24 gap-1 rounded-lg border text-sm transition-colors",
             value === opt.id
               ? "bg-white text-zinc-950 border-white"
               : "bg-zinc-900 text-zinc-300 border-zinc-700 hover:bg-zinc-800"
@@ -36,17 +43,6 @@ function SelectGrid({
     </div>
   )
 }
-
-const RESULT_OPTIONS = [
-  { id: 'win', label: 'Win', emoji: '🏆' },
-  { id: 'loss', label: 'Loss', emoji: '💀' },
-  { id: 'tie', label: 'Tie', emoji: '🤝' },
-]
-
-const FIRST_OPTIONS = [
-  { id: 'true', label: 'Yes, I went first', emoji: '⚡' },
-  { id: 'false', label: 'No, I went second', emoji: '🐢' },
-]
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -67,12 +63,40 @@ export default function LogMatch() {
   const [wentFirst, setWentFirst] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [metaDecks, setMetaDecks] = useState<{ id: string; name: string; icons: string[]; group: 'meta' }[]>([])
+  const [recentDecks, setRecentDecks] = useState<{ id: string; name: string; group: 'recent' }[]>([])
+
+  useEffect(() => {
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/'); return }
+
+      const [{ data: meta }, { data: matches }] = await Promise.all([
+        supabase.from('meta_decks').select('id, name, icons').order('usage_count', { ascending: false }).limit(10),
+        supabase.from('matches').select('my_deck, opp_deck').eq('user_id', user.id).order('timestamp', { ascending: false }).limit(50)
+      ])
+
+      setMetaDecks((meta ?? []).map(d => ({ ...d, group: 'meta' as const })))
+
+      // Collect unique deck names from match history
+      const seen = new Set<string>()
+      const recent: { id: string; name: string; group: 'recent' }[] = []
+      for (const m of matches ?? []) {
+        for (const name of [m.my_deck, m.opp_deck]) {
+          if (!seen.has(name)) {
+            seen.add(name)
+            recent.push({ id: name, name, group: 'recent' })
+          }
+        }
+      }
+      setRecentDecks(recent)
+    }
+    load()
+  }, [])
 
   const handleSubmit = async () => {
     if (!myDeck || !oppDeck || !result || !wentFirst) return
-
     setSaving(true)
-
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/'); return }
 
@@ -100,41 +124,34 @@ export default function LogMatch() {
   return (
     <main className="min-h-screen bg-zinc-950 text-white">
       <div className="max-w-2xl mx-auto p-6 space-y-4">
-
-        <div className="flex items-center justify-between py-2">
-          <h1 className="text-2xl font-bold">Log a Match</h1>
-        </div>
+        <h1 className="text-2xl font-bold py-2">Log a Match</h1>
 
         <Section title="My Deck">
-          <SelectGrid
-            options={META_DECKS.map(d => ({ id: d.id, label: d.name, emoji: d.emoji }))}
+          <DeckCombobox
             value={myDeck}
             onChange={setMyDeck}
+            metaDecks={metaDecks}
+            recentDecks={recentDecks}
+            placeholder="Search or type your deck..."
           />
         </Section>
 
         <Section title="Opponent's Deck">
-          <SelectGrid
-            options={META_DECKS.map(d => ({ id: d.id, label: d.name, emoji: d.emoji }))}
+          <DeckCombobox
             value={oppDeck}
             onChange={setOppDeck}
+            metaDecks={metaDecks}
+            recentDecks={recentDecks}
+            placeholder="Search or type opponent's deck..."
           />
         </Section>
 
         <Section title="Result">
-          <SelectGrid
-            options={RESULT_OPTIONS}
-            value={result}
-            onChange={setResult}
-          />
+          <SelectGrid options={RESULT_OPTIONS} value={result} onChange={setResult} />
         </Section>
 
         <Section title="Did you go first?">
-          <SelectGrid
-            options={FIRST_OPTIONS}
-            value={wentFirst}
-            onChange={setWentFirst}
-          />
+          <SelectGrid options={FIRST_OPTIONS} value={wentFirst} onChange={setWentFirst} />
         </Section>
 
         <button
@@ -149,7 +166,6 @@ export default function LogMatch() {
         >
           {saved ? '✅ Match Logged!' : saving ? 'Saving...' : 'Log Match'}
         </button>
-
       </div>
     </main>
   )

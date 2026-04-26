@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/src/lib/supabase'
+import { createClient } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
 
 export default function Home() {
