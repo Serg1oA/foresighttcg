@@ -5,10 +5,6 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase'
 import { cn } from '@/lib/utils'
 import { DeckCombobox } from '@/components/deck-combobox'
-import {
-  PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid
-} from 'recharts'
 
 type Match = {
   id: string
@@ -28,11 +24,8 @@ type DeckOption = {
   group: 'meta' | 'recent'
 }
 
-const RESULT_COLORS: Record<string, string> = {
-  win: '#22c55e',
-  loss: '#ef4444',
-  tie: '#eab308',
-}
+const INITIAL_VISIBLE_ROWS = 20
+const ROWS_PER_PAGE = 20
 
 const SelectInline = ({
   value,
@@ -66,6 +59,7 @@ export default function History() {
   const [filterDeck, setFilterDeck] = useState<string>('all')
   const [metaDecks, setMetaDecks] = useState<DeckOption[]>([])
   const [recentDecks, setRecentDecks] = useState<DeckOption[]>([])
+  const [visibleRows, setVisibleRows] = useState(INITIAL_VISIBLE_ROWS)
 
   useEffect(() => {
     const load = async () => {
@@ -147,27 +141,12 @@ export default function History() {
   })
 
   const myDecks = [...new Set(matches.map(m => m.my_deck))]
+  const visibleMatches = filtered.slice(0, visibleRows)
+  const canSeeMore = filtered.length > visibleRows
 
-  const resultCounts = ['win', 'loss', 'tie'].map(r => ({
-    name: r.charAt(0).toUpperCase() + r.slice(1),
-    value: matches.filter(m => m.result === r).length,
-  })).filter(r => r.value > 0)
-
-  const winRateByDeck = Object.entries(
-    matches.reduce((acc, m) => {
-      if (!acc[m.opp_deck]) acc[m.opp_deck] = { wins: 0, total: 0 }
-      acc[m.opp_deck].total++
-      if (m.result === 'win') acc[m.opp_deck].wins++
-      return acc
-    }, {} as Record<string, { wins: number; total: number }>)
-  )
-    .map(([deck, { wins, total }]) => ({
-      name: deck,
-      winRate: Math.round((wins / total) * 100),
-      total,
-    }))
-    .sort((a, b) => b.total - a.total)
-    .slice(0, 8)
+  useEffect(() => {
+    setVisibleRows(INITIAL_VISIBLE_ROWS)
+  }, [filterResult, filterDeck])
 
   if (loading) return (
     <main className="flex items-center justify-center min-h-[80vh] text-zinc-500">
@@ -178,55 +157,6 @@ export default function History() {
   return (
     <main className="max-w-4xl mx-auto p-6 space-y-8 text-white">
       <h1 className="text-2xl font-bold">Match History</h1>
-
-      {/* Charts */}
-      {matches.length >= 3 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-            <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">
-              Win / Loss / Tie
-            </h2>
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={resultCounts}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={75}
-                  label={({ name, percent }) =>
-                    percent !== undefined ? `${name} ${Math.round(percent * 100)}%` : ''
-                  }
-                >
-                  {resultCounts.map((entry) => (
-                    <Cell key={entry.name} fill={RESULT_COLORS[entry.name.toLowerCase()]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: '8px' }} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
-            <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-4">
-              Win Rate vs Archetype
-            </h2>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={winRateByDeck} layout="vertical" margin={{ left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
-                <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fill: '#a1a1aa', fontSize: 11 }} />
-                <YAxis type="category" dataKey="name" tick={{ fill: '#a1a1aa', fontSize: 11 }} width={90} />
-                <Tooltip
-                  formatter={(value) => [`${value}%`, 'Win Rate']}
-                  contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: '8px' }}
-                />
-                <Bar dataKey="winRate" fill="#3b82f6" radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
 
       {/* Filters */}
       <div className="flex gap-3 flex-wrap items-center">
@@ -265,8 +195,16 @@ export default function History() {
         <p className="text-zinc-500 text-center py-12">No matches found.</p>
       ) : (
         <div className="space-y-2">
-          {filtered.map(match => (
-            <div key={match.id} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+          {visibleMatches.map(match => (
+            <div
+              key={match.id}
+              className={cn(
+                'rounded-xl overflow-hidden border',
+                match.result === 'win' && 'bg-emerald-950/20 border-emerald-800/40',
+                match.result === 'loss' && 'bg-red-950/20 border-red-800/40',
+                match.result === 'tie' && 'bg-zinc-900 border-zinc-800'
+              )}
+            >
               {editingId === match.id && editingMatch ? (
                 <div className="p-4 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -363,6 +301,16 @@ export default function History() {
               )}
             </div>
           ))}
+          {canSeeMore && (
+            <div className="flex justify-center pt-2">
+              <button
+                onClick={() => setVisibleRows(prev => prev + ROWS_PER_PAGE)}
+                className="px-4 py-2 text-sm rounded-lg border border-zinc-700 text-zinc-200 hover:bg-zinc-800 transition-colors"
+              >
+                See more
+              </button>
+            </div>
+          )}
         </div>
       )}
     </main>
