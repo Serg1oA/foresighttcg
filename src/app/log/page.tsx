@@ -61,6 +61,8 @@ type RecentMatch = {
   opp_deck: string
   result: string
   went_first: boolean
+  prize_tracker_csv?: string | null
+  prize_notes?: string | null
   timestamp: string
 }
 
@@ -78,6 +80,7 @@ export default function LogMatch() {
   const [recentDecks, setRecentDecks] = useState<{ id: string; name: string; group: 'recent' }[]>([])
   const [recentMatches, setRecentMatches] = useState<RecentMatch[]>([])
   const [tracker, setTracker] = useState(Array.from({ length: 6 }, () => ({ text: '', drawn: false })))
+  const [prizeNotes, setPrizeNotes] = useState('')
   const historyRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -88,7 +91,7 @@ export default function LogMatch() {
       const [{ data: meta }, { data: matches }, { data: recentMatchesData }] = await Promise.all([
         supabase.from('meta_decks').select('id, name, icons').order('usage_count', { ascending: false }).limit(10),
         supabase.from('matches').select('my_deck, opp_deck').eq('user_id', user.id).order('timestamp', { ascending: false }).limit(50),
-        supabase.from('matches').select('id, my_deck, opp_deck, result, went_first, timestamp').eq('user_id', user.id).order('timestamp', { ascending: false }).limit(10)
+        supabase.from('matches').select('id, my_deck, opp_deck, result, went_first, prize_tracker_csv, prize_notes, timestamp').eq('user_id', user.id).order('timestamp', { ascending: false }).limit(10)
       ])
 
       setMetaDecks((meta ?? []).map(d => ({ ...d, group: 'meta' as const })))
@@ -116,13 +119,19 @@ export default function LogMatch() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/'); setSaving(false); return }
 
+    const trackerCsv = tracker
+      .map((line, idx) => `${idx + 1}:${line.drawn ? '1' : '0'}:${line.text.replaceAll(',', '\\,')}`)
+      .join(',')
+
     const { data: inserted, error } = await supabase.from('matches').insert({
       user_id: user.id,
       my_deck: myDeck,
       opp_deck: oppDeck,
       result,
       went_first: wentFirst === 'true',
-    }).select('id, my_deck, opp_deck, result, went_first, timestamp').single()
+      prize_tracker_csv: trackerCsv,
+      prize_notes: prizeNotes.trim() || null,
+    }).select('id, my_deck, opp_deck, result, went_first, prize_tracker_csv, prize_notes, timestamp').single()
 
     setSaving(false)
     if (!error) {
@@ -135,10 +144,11 @@ export default function LogMatch() {
           { duration: 420, easing: 'ease-out' }
         )
       }
-      setMyDeck('')
       setOppDeck('')
       setResult('')
       setWentFirst('')
+      setTracker(Array.from({ length: 6 }, () => ({ text: '', drawn: false })))
+      setPrizeNotes('')
     }
   }
 
@@ -170,37 +180,56 @@ export default function LogMatch() {
         </Section>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
-          <div className="md:col-span-2">
-            <Section title="Prize card tracker" className="h-full">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {tracker.map((line, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setTracker(prev => prev.map((v, idx) => idx === i ? { ...v, drawn: !v.drawn } : v))}
-                      className={cn(
-                        'h-7 w-7 rounded border text-sm font-semibold',
-                        line.drawn ? 'border-zinc-500 text-zinc-200 bg-zinc-800' : 'border-zinc-700 text-zinc-500'
-                      )}
-                      aria-label={`Toggle drawn for card ${i + 1}`}
-                    >
-                      {line.drawn ? '✓' : ''}
-                    </button>
-                    <input
-                      value={line.text}
-                      onChange={e => setTracker(prev => prev.map((v, idx) => idx === i ? { ...v, text: e.target.value } : v))}
-                      className={cn('w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-sm outline-none focus:border-zinc-600', line.drawn && 'line-through text-zinc-500')}
-                      placeholder={`Card ${i + 1}`}
-                    />
-                  </div>
-                ))}
-              </div>
-            </Section>
-          </div>
-
           <div className="md:col-span-1">
             <Section title="Did you go first?" className="h-full">
               <SelectGrid options={FIRST_OPTIONS} value={wentFirst} onChange={setWentFirst} vertical />
+            </Section>
+          </div>
+          <div className="md:col-span-2">
+            <Section title="Prize card tracker" className="h-full">
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {tracker.map((line, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setTracker(prev => prev.map((v, idx) => idx === i ? { ...v, drawn: !v.drawn } : v))}
+                        className={cn(
+                          'h-7 w-7 rounded border text-sm font-semibold',
+                          line.drawn ? 'border-zinc-500 text-zinc-200 bg-zinc-800' : 'border-zinc-700 text-zinc-500'
+                        )}
+                        aria-label={`Toggle drawn for card ${i + 1}`}
+                      >
+                        {line.drawn ? '✓' : ''}
+                      </button>
+                      <input
+                        value={line.text}
+                        onChange={e => setTracker(prev => prev.map((v, idx) => idx === i ? { ...v, text: e.target.value } : v))}
+                        className={cn('w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-sm outline-none focus:border-zinc-600', line.drawn && 'line-through text-zinc-500')}
+                        placeholder={`Card ${i + 1}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={prizeNotes}
+                    onChange={(e) => setPrizeNotes(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-sm outline-none focus:border-zinc-600"
+                    placeholder="Notes..."
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTracker(Array.from({ length: 6 }, () => ({ text: '', drawn: false })))
+                      setPrizeNotes('')
+                    }}
+                    className="px-3 py-1.5 text-xs rounded-lg border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
             </Section>
           </div>
         </div>
