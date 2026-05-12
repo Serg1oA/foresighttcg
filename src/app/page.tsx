@@ -29,7 +29,7 @@ export default function Home() {
 
   return (
     <main className="flex flex-col items-center justify-center min-h-[80vh] gap-4">
-      <h1 className="text-5xl font-bold tracking-tight">ForesightTCG 🃏</h1>
+      <h1 className="text-5xl font-bold tracking-tight">ForesightTCG</h1>
       <p className="text-zinc-400">Your Pokémon TCG match tracker</p>
       {user ? (
         <button

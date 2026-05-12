@@ -44,6 +44,17 @@ const TIME_FILTERS = [
   { id: '90', label: 'Last 90 days' },
 ]
 
+function MetaWipBanner() {
+  return (
+    <div
+      className="w-full border border-amber-800/50 bg-amber-950/35 px-3 py-2 text-center text-xs text-amber-100/90"
+      role="status"
+    >
+      Under development — work in progress.
+    </div>
+  )
+}
+
 export default function MetaPage() {
   const supabase = createClient()
   const [decks, setDecks] = useState<MetaDeck[]>([])
@@ -81,20 +92,27 @@ export default function MetaPage() {
   }
 
   if (loading) return (
-    <main className="flex items-center justify-center min-h-[80vh] text-zinc-500">Loading meta data...</main>
+    <main className="flex flex-col min-h-[80vh]">
+      <MetaWipBanner />
+      <div className="flex flex-1 items-center justify-center text-zinc-500">Loading meta data...</div>
+    </main>
   )
 
   if (decks.length === 0) return (
-    <main className="flex flex-col items-center justify-center min-h-[80vh] gap-3 text-center px-6">
-      <p className="text-zinc-300 font-semibold">No meta data yet</p>
-      <p className="text-zinc-500 text-sm max-w-sm">
-        The daily sync hasn't run yet. You can trigger it manually in your Supabase dashboard under Edge Functions → fetch-meta → Invoke.
-      </p>
+    <main className="flex flex-col min-h-[80vh]">
+      <MetaWipBanner />
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center px-6">
+        <p className="text-zinc-300 font-semibold">No meta data yet</p>
+        <p className="text-zinc-500 text-sm max-w-sm">
+          The daily sync hasn't run yet. You can trigger it manually in your Supabase dashboard under Edge Functions → fetch-meta → Invoke.
+        </p>
+      </div>
     </main>
   )
 
   return (
     <main className="max-w-6xl mx-auto p-6 space-y-8 text-white">
+      <MetaWipBanner />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold">Meta Overview</h1>
         <div className="flex gap-2">
@@ -121,9 +139,9 @@ export default function MetaPage() {
             <YAxis type="category" dataKey="name" tick={{ fill: '#a1a1aa', fontSize: 11 }} width={120} />
             <Tooltip
               formatter={(v, name) => name === 'share' ? [`${v}%`, 'Meta Share'] : [v, 'Players']}
-              contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: '8px' }}
+              contentStyle={{ backgroundColor: '#18181b', border: '1px solid #3f3f46', borderRadius: 0 }}
             />
-            <Bar dataKey="share" radius={[0, 4, 4, 0]}>
+            <Bar dataKey="share" radius={[0, 0, 0, 0]}>
               {usageData.map((_, i) => (
                 <Cell key={i} fill={`hsl(${200 + i * 15}, 70%, 55%)`} />
               ))}

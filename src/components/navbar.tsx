@@ -38,7 +38,7 @@ export default function Navbar() {
       <div className="max-w-4xl mx-auto px-6 h-14 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="font-bold text-white tracking-tight shrink-0">
-          ForesightTCG 🃏
+          ForesightTCG
         </Link>
 
         {/* Desktop nav */}
